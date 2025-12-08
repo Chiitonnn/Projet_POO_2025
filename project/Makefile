@@ -1,21 +1,28 @@
-# Makefile
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -O2 -I./Core -I./Managers -I./Patterns
+CXXFLAGS = -std=c++17 -Wall -Wextra -I.
+LDFLAGS = 
+TARGET = projet_poo.exe
 
-
-SRCS = main.cpp \
-    Core/Task.cpp Core/User.cpp Core/ConcretePriorityStrategies/StandardPriority.cpp \
-    Managers/TaskManager.cpp Managers/UserManager.cpp Managers/AssignmentManager.cpp \
-    Patterns/Observer/NotificationCenter.cpp Patterns/Singleton/HistoryLogger.cpp \
-    Patterns/Facade/SystemFacade.cpp
-
-OBJS = $(SRCS:.cpp=.o)
-TARGET = task_manager
+# Tous les fichiers source
+SRCS = Core/Utilisateur.cpp Core/Tableau.cpp Core/Liste.cpp \
+       Core/Carte.cpp Core/Etiquette.cpp Core/Commentaire.cpp \
+       Patterns/Command/ICommande.cpp Patterns/Command/CommandeDeplacerCarte.cpp \
+       Patterns/Observer/GestionnaireNotifications.cpp \
+       Patterns/Factory/IFabriqueCarte.cpp Patterns/Factory/FabriqueCarteStandard.cpp \
+       Patterns/Facade/SystemFacade.cpp \
+       main.cpp
 
 all: $(TARGET)
 
 $(TARGET): $(SRCS)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SRCS)
+	$(CXX) $(CXXFLAGS) $(SRCS) -o $(TARGET) $(LDFLAGS)
 
 clean:
-	rm -f $(TARGET) $(OBJS)
+	del $(TARGET) 2>nul || true
+
+run: $(TARGET)
+	./$(TARGET)
+
+rebuild: clean all
+
+.PHONY: all clean run rebuild

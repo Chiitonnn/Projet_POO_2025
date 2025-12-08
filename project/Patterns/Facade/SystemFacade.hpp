@@ -1,47 +1,48 @@
-// Patterns/Facade/SystemFacade.hpp
 #pragma once
 #include <memory>
-#include "TaskManager.hpp"
-#include "UserManager.hpp"
-#include "AssignmentManager.hpp"
-#include "../Observer/NotificationCenter.hpp"
-#include "../Singleton/HistoryLogger.hpp"
-#include "PriorityStrategy.hpp"
-#include <memory>
 #include <string>
+#include <map>
+#include "../../Core/Tableau.hpp"
+#include "../../Core/Utilisateur.hpp"
+#include "../../Patterns/Command/ICommande.hpp"
+#include "../../Patterns/Factory/IFabriqueCarte.hpp"
+#include "../../Patterns/Observer/GestionnaireNotifications.hpp"
 
 class SystemFacade {
 private:
-    TaskManager taskManager_;
-    UserManager userManager_;
-    mutable NotificationCenter notifier_;
+    std::map<int, std::shared_ptr<Utilisateur>> utilisateurs_;
+    std::map<int, std::shared_ptr<Tableau>> tableaux_;
+    std::shared_ptr<IFabriqueCarte> fabriqueCarte_;
+    std::vector<std::shared_ptr<ICommande>> historiqueCommandes_;
+    int nextUserId_;
+    int nextTableauId_;
+    int nextListeId_;
+    int nextCarteId_;
+    
+    GestionnaireNotifications* gestionnaireNotifications_;
+    
 public:
     SystemFacade();
-
-    // Observers
-    void subscribeObserver(std::shared_ptr<IObserver> o);
-    void unsubscribeObserver(std::shared_ptr<IObserver> o);
-
-    // Create
-    std::shared_ptr<User> createUser(const std::string& name, const std::string& role);
-    std::shared_ptr<Task> createTask(const std::string& title, const std::string& desc, PriorityStrategyPtr strat);
-
-    // Modify / Delete
-    bool deleteUser(int userId);
-    bool deleteTask(int taskId);
-
-    std::shared_ptr<User> getUser(int userId);
-    std::shared_ptr<Task> getTask(int taskId);
-
-    // Assign
-    bool assignTaskToUser(int taskId, int userId);
-    bool unassignTask(int taskId);
-
-    // Display
-    void printAllUsers() const;
-    void printAllTasks() const;
-    void printHistory() const;
-
-    // notify/log helper
-    void notifyAndLog(const std::string& msg) const;
+    
+    // Gestion des utilisateurs
+    std::shared_ptr<Utilisateur> creerUtilisateur(const std::string& nom, const std::string& email);
+    std::shared_ptr<Utilisateur> getUtilisateur(int id) const;
+    bool supprimerUtilisateur(int id);
+    
+    // Gestion des tableaux
+    std::shared_ptr<Tableau> creerTableau(const std::string& nom, int createurId);
+    std::shared_ptr<Tableau> getTableau(int id) const;
+    bool supprimerTableau(int id);
+    
+    // Commandes
+    bool deplacerCarte(int carteId, int nouvelleListeId, int nouvellePosition);
+    void annulerDerniereCommande();
+    
+    // Affichage
+    void afficherUtilisateurs() const;
+    void afficherTableaux() const;
+    void afficherNotificationsUtilisateur(int utilisateurId) const;
+    
+    // Gestionnaire de notifications
+    GestionnaireNotifications* getGestionnaireNotifications() const;
 };

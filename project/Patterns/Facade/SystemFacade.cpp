@@ -1,95 +1,121 @@
-// Patterns/Facade/SystemFacade.cpp
 #include "SystemFacade.hpp"
-#include "../Patterns/Singleton/HistoryLogger.hpp"
+#include "../Factory/FabriqueCarteStandard.hpp"
 #include <iostream>
+#include <algorithm>
 
-SystemFacade::SystemFacade() {}
-
-void SystemFacade::subscribeObserver(std::shared_ptr<IObserver> o) { notifier_.subscribe(o); }
-void SystemFacade::unsubscribeObserver(std::shared_ptr<IObserver> o) { notifier_.unsubscribe(o); }
-
-std::shared_ptr<User> SystemFacade::createUser(const std::string& name, const std::string& role) {
-    auto u = userManager_.createUser(name, role);
-    notifyAndLog("User created: " + u->getName() + " (id " + std::to_string(u->getId()) + ")");
-    return u;
-}
-std::shared_ptr<Task> SystemFacade::createTask(const std::string& title, const std::string& desc, PriorityStrategyPtr strat) {
-    auto t = taskManager_.createTask(title, desc, strat);
-    notifyAndLog("Task created: " + t->getTitle() + " (id " + std::to_string(t->getId()) + ")");
-    return t;
+SystemFacade::SystemFacade()
+    : nextUserId_(1), nextTableauId_(1), nextListeId_(1), nextCarteId_(1),
+      gestionnaireNotifications_(GestionnaireNotifications::getInstance()) {
+    fabriqueCarte_ = std::make_shared<FabriqueCarteStandard>();
 }
 
-bool SystemFacade::deleteUser(int userId) {
-    auto u = userManager_.getUser(userId);
-    if (!u) return false;
-    // simple: do not reassign tasks automatically
-    userManager_.removeUser(userId);
-    notifyAndLog("User deleted id " + std::to_string(userId));
-    return true;
-}
-bool SystemFacade::deleteTask(int taskId) {
-    auto t = taskManager_.getTask(taskId);
-    if (!t) return false;
-    taskManager_.removeTask(taskId);
-    notifyAndLog("Task deleted id " + std::to_string(taskId));
-    return true;
+std::shared_ptr<Utilisateur> SystemFacade::creerUtilisateur(const std::string& nom, 
+                                                           const std::string& email) {
+    auto utilisateur = std::make_shared<Utilisateur>(nextUserId_++, nom, email);
+    utilisateurs_[utilisateur->getId()] = utilisateur;
+    
+    // Abonner l'utilisateur à tous les événements
+    gestionnaireNotifications_->abonner(utilisateur, "TOUS");
+    
+    gestionnaireNotifications_->notifier("UTILISATEUR_CREE",
+                                        "Utilisateur '" + nom + "' créé");
+    return utilisateur;
 }
 
-std::shared_ptr<User> SystemFacade::getUser(int userId) { return userManager_.getUser(userId); }
-std::shared_ptr<Task> SystemFacade::getTask(int taskId) { return taskManager_.getTask(taskId); }
+std::shared_ptr<Utilisateur> SystemFacade::getUtilisateur(int id) const {
+    auto it = utilisateurs_.find(id);
+    return it != utilisateurs_.end() ? it->second : nullptr;
+}
 
-bool SystemFacade::assignTaskToUser(int taskId, int userId) {
-    auto t = taskManager_.getTask(taskId);
-    auto u = userManager_.getUser(userId);
-    if (!t || !u) return false;
-    // if already assigned to someone else, remove previous link
-    if (t->getAssignedUserId() != -1 && t->getAssignedUserId() != userId) {
-        auto prev = userManager_.getUser(t->getAssignedUserId());
-        if (prev) prev->removeTask(taskId);
+bool SystemFacade::supprimerUtilisateur(int id) {
+    auto it = utilisateurs_.find(id);
+    if (it != utilisateurs_.end()) {
+        gestionnaireNotifications_->notifier("UTILISATEUR_SUPPRIME",
+                                            "Utilisateur '" + it->second->getNom() + "' supprimé");
+        
+        // Désabonner l'utilisateur
+        gestionnaireNotifications_->desabonner(it->second, "TOUS");
+        
+        utilisateurs_.erase(it);
+        return true;
     }
-    AssignmentManager::assign(t, u);
-    notifyAndLog("Assigned task " + std::to_string(taskId) + " to user " + std::to_string(userId));
-    return true;
+    return false;
 }
 
-bool SystemFacade::unassignTask(int taskId) {
-    auto t = taskManager_.getTask(taskId);
-    if (!t) return false;
-    int uid = t->getAssignedUserId();
-    if (uid == -1) return false;
-    auto u = userManager_.getUser(uid);
-    if (u) AssignmentManager::unassign(t, u);
-    notifyAndLog("Unassigned task " + std::to_string(taskId));
-    return true;
+std::shared_ptr<Tableau> SystemFacade::creerTableau(const std::string& nom, int createurId) {
+    auto createur = getUtilisateur(createurId);
+    if (!createur) return nullptr;
+    
+    auto tableau = std::make_shared<Tableau>(nextTableauId_++, nom, createurId);
+    tableaux_[tableau->getId()] = tableau;
+    
+    gestionnaireNotifications_->notifier("TABLEAU_CREE_SYSTEM",
+                                        "Tableau '" + nom + "' créé par " + createur->getNom());
+    return tableau;
 }
 
-void SystemFacade::printAllUsers() const {
-    auto users = userManager_.allUsers();
-    std::cout << "Users:\n";
-    for (const auto& [id,u] : users) {
-        std::cout << " - id:" << id << " name: " << u->getName() << " role: " << u->getRole() << "\n";
-        std::cout << "   Tasks: ";
-        for (int t : u->getAssignedTasks()) std::cout << t << " ";
-        std::cout << "\n";
+std::shared_ptr<Tableau> SystemFacade::getTableau(int id) const {
+    auto it = tableaux_.find(id);
+    return it != tableaux_.end() ? it->second : nullptr;
+}
+
+bool SystemFacade::supprimerTableau(int id) {
+    auto it = tableaux_.find(id);
+    if (it != tableaux_.end()) {
+        gestionnaireNotifications_->notifier("TABLEAU_SUPPRIME",
+                                            "Tableau '" + it->second->getNom() + "' supprimé");
+        tableaux_.erase(it);
+        return true;
+    }
+    return false;
+}
+
+bool SystemFacade::deplacerCarte(int carteId, int nouvelleListeId, int nouvellePosition) {
+    // Pour éviter les warnings "unused parameter"
+    (void)nouvelleListeId;    // Indique au compilateur qu'on utilise le paramètre
+    (void)nouvellePosition;   // Indique au compilateur qu'on utilise le paramètre
+    
+    auto notif = GestionnaireNotifications::getInstance();
+    notif->notifier("DEPLACEMENT_TENTATIVE",
+                   "Tentative de deplacement carte " + std::to_string(carteId));
+    return false; // Implémentation simplifiée
+}
+
+void SystemFacade::annulerDerniereCommande() {
+    if (!historiqueCommandes_.empty()) {
+        auto derniereCommande = historiqueCommandes_.back();
+        derniereCommande->annuler();
+        historiqueCommandes_.pop_back();
+        
+        gestionnaireNotifications_->notifier("COMMANDE_ANNULEE",
+                                            "Derniere commande annulee");
     }
 }
 
-void SystemFacade::printAllTasks() const {
-    auto tasks = taskManager_.allTasks();
-    std::cout << "Tasks:\n";
-    for (const auto& [id,t] : tasks) {
-        std::cout << " - id:" << id << " title: " << t->getTitle() << " status: " << to_string(t->getStatus())
-                  << " priority: " << t->getPriority() << " assignedTo: " << t->getAssignedUserId() << "\n";
+void SystemFacade::afficherUtilisateurs() const {
+    std::cout << "\n=== UTILISATEURS (" << utilisateurs_.size() << ") ===\n";
+    for (const auto& [id, utilisateur] : utilisateurs_) {
+        std::cout << "ID: " << id << " | Nom: " << utilisateur->getNom()
+                  << " | Email: " << utilisateur->getEmail() << "\n";
     }
 }
 
-void SystemFacade::printHistory() const {
-    auto logs = HistoryLogger::instance().getLogs();
-    std::cout << "History logs:\n";
-    for (auto& l : logs) std::cout << l << "\n";
+void SystemFacade::afficherTableaux() const {
+    std::cout << "\n=== TABLEAUX (" << tableaux_.size() << ") ===\n";
+    for (const auto& [id, tableau] : tableaux_) {
+        tableau->afficher();
+    }
 }
 
-void SystemFacade::notifyAndLog(const std::string& msg) const {
-    notifier_.publish(msg);
-    HistoryLogger::instance().log(msg); 
+void SystemFacade::afficherNotificationsUtilisateur(int utilisateurId) const {
+    auto utilisateur = getUtilisateur(utilisateurId);
+    if (utilisateur) {
+        utilisateur->afficherNotifications();
+    } else {
+        std::cout << "Utilisateur " << utilisateurId << " non trouve.\n";
+    }
+}
+
+GestionnaireNotifications* SystemFacade::getGestionnaireNotifications() const {
+    return gestionnaireNotifications_;
 }

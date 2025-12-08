@@ -1,4 +1,3 @@
-// Core/WorkflowStatus.hpp
 #pragma once
 #include <string>
 
@@ -10,9 +9,9 @@ enum class WorkflowStatus {
 
 inline std::string to_string(WorkflowStatus s) {
     switch (s) {
-        case WorkflowStatus::TODO: return "todo";
-        case WorkflowStatus::IN_PROGRESS: return "in_progress";
-        case WorkflowStatus::DONE: return "done";
+        case WorkflowStatus::TODO: return "À faire";
+        case WorkflowStatus::IN_PROGRESS: return "En cours";
+        case WorkflowStatus::DONE: return "Terminé";
+        default: return "Inconnu";
     }
-    return "unknown";
 }
