@@ -3,13 +3,14 @@
 #include <limits>
 #include <vector>
 #include "Patterns/Facade/SystemFacade.hpp"
+#include "Core/Role.hpp"
 
 // Déclarations anticipées
-void menuListes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau);
+void menuListes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau, int utilisateurId);
 void menuCartes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau, 
-                std::shared_ptr<Liste> liste);
+                std::shared_ptr<Liste> liste, int utilisateurId);
 void menuCarteDetaillee(SystemFacade& systeme, std::shared_ptr<Tableau> tableau,
-                       std::shared_ptr<Liste> liste, std::shared_ptr<Carte> carte);
+                       std::shared_ptr<Liste> liste, std::shared_ptr<Carte> carte, int utilisateurId);
 
 // Fonctions utilitaires
 int lireEntier() {
@@ -65,10 +66,18 @@ void afficherTableauDetaille(std::shared_ptr<Tableau> tableau) {
 }
 
 // Menu tableaux
-void menuTableaux(SystemFacade& systeme) {
+void menuTableaux(SystemFacade& systeme, int utilisateurId) {
+    auto utilisateur = systeme.getUtilisateur(utilisateurId);
+    if (!utilisateur) {
+        std::cout << "[ERREUR] Utilisateur non trouve\n";
+        return;
+    }
+    
     while (true) {
         afficherSeparateur();
         std::cout << "MENU PRINCIPAL - TABLEAUX\n";
+        std::cout << "Utilisateur: " << utilisateur->getNom() 
+                  << " (Role: " << to_string(utilisateur->getRole()) << ")\n";
         std::cout << "1. Creer un nouveau tableau\n";
         std::cout << "2. Voir tous les tableaux\n";
         std::cout << "3. Ouvrir un tableau\n";
@@ -79,11 +88,13 @@ void menuTableaux(SystemFacade& systeme) {
         
         switch (choix) {
             case 1: {
-                std::string nom = lireChaine("Nom du tableau: ");
-                std::cout << "Votre ID utilisateur: ";
-                int createurId = lireEntier();
+                if (!utilisateur->peutCreerTableau()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas creer de tableau\n";
+                    break;
+                }
                 
-                auto tableau = systeme.creerTableau(nom, createurId);
+                std::string nom = lireChaine("Nom du tableau: ");
+                auto tableau = systeme.creerTableauAvecPermission(nom, utilisateurId);
                 if (tableau) {
                     std::cout << "[OK] Tableau cree: " << nom << " (ID: " << tableau->getId() << ")\n";
                     
@@ -93,10 +104,8 @@ void menuTableaux(SystemFacade& systeme) {
                     std::cin.ignore();
                     
                     if (acces == 'o' || acces == 'O') {
-                        menuListes(systeme, tableau);
+                        menuListes(systeme, tableau, utilisateurId);
                     }
-                } else {
-                    std::cout << "[ERREUR] Echec de creation\n";
                 }
                 break;
             }
@@ -112,7 +121,7 @@ void menuTableaux(SystemFacade& systeme) {
                 
                 auto tableau = systeme.getTableau(tableauId);
                 if (tableau) {
-                    menuListes(systeme, tableau);
+                    menuListes(systeme, tableau, utilisateurId);
                 } else {
                     std::cout << "[ERREUR] Tableau non trouve\n";
                 }
@@ -130,11 +139,19 @@ void menuTableaux(SystemFacade& systeme) {
 }
 
 // Menu listes
-void menuListes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau) {
+void menuListes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau, int utilisateurId) {
+    auto utilisateur = systeme.getUtilisateur(utilisateurId);
+    if (!utilisateur) {
+        std::cout << "[ERREUR] Utilisateur non trouve\n";
+        return;
+    }
+    
     while (true) {
         afficherTableauDetaille(tableau);
         afficherSeparateur();
         std::cout << "MENU LISTES - Tableau: " << tableau->getNom() << "\n";
+        std::cout << "Utilisateur: " << utilisateur->getNom() 
+                  << " (Role: " << to_string(utilisateur->getRole()) << ")\n";
         std::cout << "1. Creer une nouvelle liste\n";
         std::cout << "2. Renommer une liste\n";
         std::cout << "3. Ouvrir une liste\n";
@@ -147,6 +164,11 @@ void menuListes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau) {
         
         switch (choix) {
             case 1: {
+                if (!utilisateur->peutModifierTableau()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas creer de liste\n";
+                    break;
+                }
+                
                 std::string nom = lireChaine("Nom de la liste: ");
                 auto liste = tableau->creerListe(nom);
                 std::cout << "[OK] Liste creee: " << nom << "\n";
@@ -154,6 +176,11 @@ void menuListes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau) {
             }
             
             case 2: {
+                if (!utilisateur->peutModifierTableau()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas renommer de liste\n";
+                    break;
+                }
+                
                 std::cout << "Numero de la liste a renommer: ";
                 int listeIndex = lireEntier();
                 
@@ -174,7 +201,7 @@ void menuListes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau) {
                 
                 auto listes = tableau->getListes();
                 if (listeIndex >= 0 && listeIndex < static_cast<int>(listes.size())) {
-                    menuCartes(systeme, tableau, listes[listeIndex]);
+                    menuCartes(systeme, tableau, listes[listeIndex], utilisateurId);
                 } else {
                     std::cout << "[ERREUR] Liste non trouvee\n";
                 }
@@ -182,6 +209,11 @@ void menuListes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau) {
             }
             
             case 4: {
+                if (!utilisateur->peutModifierTableau()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas supprimer de liste\n";
+                    break;
+                }
+                
                 std::cout << "Numero de la liste a supprimer: ";
                 int listeIndex = lireEntier();
                 
@@ -198,10 +230,16 @@ void menuListes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau) {
             }
             
             case 5: {
+                if (!utilisateur->peutAjouterMembre()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas ajouter de membre\n";
+                    break;
+                }
+                
                 std::cout << "ID de l'utilisateur a ajouter: ";
                 int userId = lireEntier();
-                tableau->ajouterMembre(userId);
-                std::cout << "[OK] Membre ajoute\n";
+                if (systeme.ajouterMembreAvecPermission(tableau->getId(), userId, utilisateurId)) {
+                    std::cout << "[OK] Membre ajoute\n";
+                }
                 break;
             }
             
@@ -216,10 +254,18 @@ void menuListes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau) {
 
 // Menu cartes
 void menuCartes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau, 
-                std::shared_ptr<Liste> liste) {
+                std::shared_ptr<Liste> liste, int utilisateurId) {
+    auto utilisateur = systeme.getUtilisateur(utilisateurId);
+    if (!utilisateur) {
+        std::cout << "[ERREUR] Utilisateur non trouve\n";
+        return;
+    }
+    
     while (true) {
         std::cout << "\n" << std::string(40, '-') << "\n";
         std::cout << "LISTE: " << liste->getNom() << " (dans " << tableau->getNom() << ")\n";
+        std::cout << "Utilisateur: " << utilisateur->getNom() 
+                  << " (Role: " << to_string(utilisateur->getRole()) << ")\n";
         std::cout << std::string(40, '-') << "\n";
         
         int carteIndex = 0;
@@ -246,6 +292,11 @@ void menuCartes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau,
         
         switch (choix) {
             case 1: {
+                if (!utilisateur->peutCreerCarte()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas creer de carte\n";
+                    break;
+                }
+                
                 std::string titre = lireChaine("Titre de la carte: ");
                 std::string description = lireChaine("Description (optionnelle): ");
                 
@@ -268,7 +319,7 @@ void menuCartes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau,
                 
                 auto cartes = liste->getCartes();
                 if (carteIndex >= 0 && carteIndex < static_cast<int>(cartes.size())) {
-                    menuCarteDetaillee(systeme, tableau, liste, cartes[carteIndex]);
+                    menuCarteDetaillee(systeme, tableau, liste, cartes[carteIndex], utilisateurId);
                 } else {
                     std::cout << "[ERREUR] Carte non trouvee\n";
                 }
@@ -276,6 +327,11 @@ void menuCartes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau,
             }
             
             case 3: {
+                if (!utilisateur->peutModifierTableau()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas deplacer de carte\n";
+                    break;
+                }
+                
                 if (liste->getCartes().empty()) {
                     std::cout << "[ERREUR] Aucune carte dans cette liste\n";
                     break;
@@ -295,6 +351,11 @@ void menuCartes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau,
             }
             
             case 4: {
+                if (!utilisateur->peutSupprimerCarte()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas supprimer de carte\n";
+                    break;
+                }
+                
                 if (liste->getCartes().empty()) {
                     std::cout << "[ERREUR] Aucune carte dans cette liste\n";
                     break;
@@ -326,10 +387,18 @@ void menuCartes(SystemFacade& systeme, std::shared_ptr<Tableau> tableau,
 
 // Menu carte detaillee
 void menuCarteDetaillee(SystemFacade& systeme, std::shared_ptr<Tableau> tableau,
-                       std::shared_ptr<Liste> liste, std::shared_ptr<Carte> carte) {
+                       std::shared_ptr<Liste> liste, std::shared_ptr<Carte> carte, int utilisateurId) {
+    auto utilisateur = systeme.getUtilisateur(utilisateurId);
+    if (!utilisateur) {
+        std::cout << "[ERREUR] Utilisateur non trouve\n";
+        return;
+    }
+    
     while (true) {
         std::cout << "\n" << std::string(40, '=') << "\n";
         std::cout << "CARTE: " << carte->getTitre() << "\n";
+        std::cout << "Utilisateur: " << utilisateur->getNom() 
+                  << " (Role: " << to_string(utilisateur->getRole()) << ")\n";
         std::cout << std::string(40, '=') << "\n";
         
         std::cout << "Description: " << carte->getDescription() << "\n";
@@ -376,6 +445,11 @@ void menuCarteDetaillee(SystemFacade& systeme, std::shared_ptr<Tableau> tableau,
         
         switch (choix) {
             case 1: {
+                if (!utilisateur->peutModifierTableau()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas modifier le titre\n";
+                    break;
+                }
+                
                 std::string nouveauTitre = lireChaine("Nouveau titre: ");
                 carte->setTitre(nouveauTitre);
                 std::cout << "[OK] Titre modifie\n";
@@ -383,6 +457,11 @@ void menuCarteDetaillee(SystemFacade& systeme, std::shared_ptr<Tableau> tableau,
             }
             
             case 2: {
+                if (!utilisateur->peutModifierTableau()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas modifier la description\n";
+                    break;
+                }
+                
                 std::string nouvelleDesc = lireChaine("Nouvelle description: ");
                 carte->setDescription(nouvelleDesc);
                 std::cout << "[OK] Description modifiee\n";
@@ -390,6 +469,11 @@ void menuCarteDetaillee(SystemFacade& systeme, std::shared_ptr<Tableau> tableau,
             }
             
             case 3: {
+                if (!utilisateur->peutModifierTableau()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas changer le statut\n";
+                    break;
+                }
+                
                 std::cout << "Nouveau statut:\n";
                 std::cout << "1. A faire\n";
                 std::cout << "2. En cours\n";
@@ -410,14 +494,26 @@ void menuCarteDetaillee(SystemFacade& systeme, std::shared_ptr<Tableau> tableau,
             }
             
             case 4: {
+                if (!utilisateur->peutAssignerCarte()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas assigner de membre\n";
+                    break;
+                }
+                
                 std::cout << "ID du membre a assigner: ";
                 int userId = lireEntier();
-                carte->assignerMembre(userId);
-                std::cout << "[OK] Membre assigne\n";
+                if (systeme.assignerCarteAvecPermission(carte->getId(), userId, utilisateurId)) {
+                    carte->assignerMembre(userId);
+                    std::cout << "[OK] Membre assigne\n";
+                }
                 break;
             }
             
             case 5: {
+                if (!utilisateur->peutModifierTableau()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas ajouter d'etiquette\n";
+                    break;
+                }
+                
                 std::string nom = lireChaine("Nom de l'etiquette: ");
                 std::string couleur = lireChaine("Couleur: ");
                 carte->ajouterEtiquette(Etiquette(nom, couleur));
@@ -426,6 +522,11 @@ void menuCarteDetaillee(SystemFacade& systeme, std::shared_ptr<Tableau> tableau,
             }
             
             case 6: {
+                if (!utilisateur->peutModifierTableau()) {
+                    std::cout << "[ERREUR PERMISSION] Vous ne pouvez pas ajouter de commentaire\n";
+                    break;
+                }
+                
                 std::string message = lireChaine("Message: ");
                 std::string auteur = lireChaine("Votre nom: ");
                 carte->ajouterCommentaire(Commentaire(carte->getCommentaires().size() + 1, 
@@ -453,10 +554,28 @@ void menuInitial(SystemFacade& systeme) {
     std::string nom = lireChaine("Votre nom: ");
     std::string email = lireChaine("Votre email: ");
     
-    auto utilisateur = systeme.creerUtilisateur(nom, email);
-    std::cout << "[OK] Bienvenue " << nom << "! (ID: " << utilisateur->getId() << ")\n";
+    // Demander le rôle
+    std::cout << "Choisissez votre role:\n";
+    std::cout << "1. Admin (peut tout faire)\n";
+    std::cout << "2. Membre (peut modifier)\n";
+    std::cout << "3. Observateur (lecture seule)\n";
+    std::cout << "Choix (1-3, defaut: 2): ";
     
-    menuTableaux(systeme);
+    int choixRole = lireEntier();
+    Role role = Role::MEMBRE;
+    
+    switch (choixRole) {
+        case 1: role = Role::ADMIN; break;
+        case 2: role = Role::MEMBRE; break;
+        case 3: role = Role::OBSERVATEUR; break;
+        default: role = Role::MEMBRE;
+    }
+    
+    auto utilisateur = systeme.creerUtilisateur(nom, email, role);
+    std::cout << "[OK] Bienvenue " << nom << "! (ID: " << utilisateur->getId() 
+              << ", Role: " << to_string(role) << ")\n";
+    
+    menuTableaux(systeme, utilisateur->getId());
 }
 
 // Programme principal
