@@ -20,4 +20,10 @@ Projet C++ terminal inspiré de Trello — gestion de tâches, utilisateurs, ass
 ## Compilation
 Assurez-vous d'avoir `g++` (support C++17).
 ```bash
-make
+make 
+
+
+# Projet_POO_2025
+
+pour compiler : make 
+pour executer : make run
